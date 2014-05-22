@@ -19,7 +19,6 @@
 				D284BF300ADD81630027CCDF /* PBXTargetDependency */,
 				D284BF260ADD814F0027CCDF /* PBXTargetDependency */,
 				D284BF2A0ADD81530027CCDF /* PBXTargetDependency */,
-				216EF8EC120295AA004917D2 /* PBXTargetDependency */,
 			);
 			name = "Build More";
 			productName = "Build All";
@@ -31,6 +30,7 @@
 				FF045B6A0C7E4AA600448140 /* ShellScript */,
 			);
 			dependencies = (
+				217A4C49138EE14C000A5BA8 /* PBXTargetDependency */,
 				03067D680C83A3830022BE1F /* PBXTargetDependency */,
 				03067D6A0C83A3890022BE1F /* PBXTargetDependency */,
 				03067D6C0C83A3920022BE1F /* PBXTargetDependency */,
@@ -369,7 +369,7 @@
 			remoteGlobalIDString = 2141DD29123FFD2C0086D23E;
 			remoteInfo = libdns_sd_profile_static;
 		};
-		216EF8EB120295AA004917D2 /* PBXContainerItemProxy */ = {
+		217A4C48138EE14C000A5BA8 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
 			proxyType = 1;
@@ -1954,10 +1954,10 @@
 			target = 2141DD29123FFD2C0086D23E /* libdns_sd_profile_static */;
 			targetProxy = 215FFB1C124002CC00470DE1 /* PBXContainerItemProxy */;
 		};
-		216EF8EC120295AA004917D2 /* PBXTargetDependency */ = {
+		217A4C49138EE14C000A5BA8 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 213FB21712028A7A002B3A08 /* BonjourEvents */;
-			targetProxy = 216EF8EB120295AA004917D2 /* PBXContainerItemProxy */;
+			targetProxy = 217A4C48138EE14C000A5BA8 /* PBXContainerItemProxy */;
 		};
 		4AE4716A0EAFF83800A6C5AD /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -2044,7 +2044,7 @@
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_OPTIMIZATION_LEVEL = s;
 				PRODUCT_NAME = "Build Some";
 			};
 			name = Development;
@@ -2080,7 +2080,7 @@
 			buildSettings = {
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_OPTIMIZATION_LEVEL = s;
 				PRODUCT_NAME = SystemLibrariesStatic;
 			};
 			name = Development;
@@ -2299,7 +2299,7 @@
 				);
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_OPTIMIZATION_LEVEL = s;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"MDNS_DEBUGMSGS=1",
