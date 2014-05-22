@@ -1466,11 +1466,10 @@ enum { NoAnswer_Normal = 0, NoAnswer_Suspended = 1, NoAnswer_Fail = 2 };
 #define MD5_LEN     16
 
 #define AutoTunnelUnregistered(X) (                                              \
-	(X)->AutoTunnelHostRecord. resrec.RecordType == kDNSRecordTypeUnregistered && \
-	(X)->AutoTunnelDeviceInfo. resrec.RecordType == kDNSRecordTypeUnregistered && \
-	(X)->AutoTunnelService.    resrec.RecordType == kDNSRecordTypeUnregistered && \
-	(X)->AutoTunnel6Record.    resrec.RecordType == kDNSRecordTypeUnregistered && \
-	(X)->AutoTunnel6MetaRecord.resrec.RecordType == kDNSRecordTypeUnregistered    )
+	(X)->AutoTunnelHostRecord.resrec.RecordType == kDNSRecordTypeUnregistered && \
+	(X)->AutoTunnelDeviceInfo.resrec.RecordType == kDNSRecordTypeUnregistered && \
+	(X)->AutoTunnelService.   resrec.RecordType == kDNSRecordTypeUnregistered && \
+	(X)->AutoTunnel6Record.   resrec.RecordType == kDNSRecordTypeUnregistered    )
 
 // Internal data structure to maintain authentication information
 typedef struct DomainAuthInfo
@@ -1482,8 +1481,7 @@ typedef struct DomainAuthInfo
 	AuthRecord       AutoTunnelTarget;		// Opaque hostname of tunnel endpoint; used as SRV target for AutoTunnelService record
 	AuthRecord       AutoTunnelDeviceInfo;	// Device info of tunnel endpoint
 	AuthRecord       AutoTunnelService;		// Service record (possibly NAT-Mapped) of IKE daemon implementing tunnel endpoint
-	AuthRecord       AutoTunnel6Record;     // AutoTunnel AAAA record obtained from awacsd
-	AuthRecord       AutoTunnel6MetaRecord; // Notify remote peers to connect to the relay servers for potential outbound connections from this host
+	AuthRecord       AutoTunnel6Record;     // AutoTunnel AAAA Record obtained from Connectivityd
 	NATTraversalInfo AutoTunnelNAT;
 	domainname       domain;
 	domainname       keyname;
@@ -1727,7 +1725,6 @@ struct NetworkInterfaceInfo_struct
 	mDNSu8          McastTxRx;			// Send/Receive multicast on this { InterfaceID, address family } ?
 	mDNSu8          NetWake;			// Set if Wake-On-Magic-Packet is enabled on this interface
 	mDNSu8          Loopback;			// Set if this is the loopback interface
-	AuthRecord     *SPSRRSet;			// To help the client keep track of the records registered with the sleep proxy
 	};
 
 #define SLE_DELETE              0x00000001
@@ -2740,7 +2737,6 @@ extern AuthGroup *AuthGroupForName(AuthHash *r, const mDNSu32 slot, const mDNSu3
 extern AuthGroup *AuthGroupForRecord(AuthHash *r, const mDNSu32 slot, const ResourceRecord *const rr);
 extern AuthGroup *InsertAuthRecord(mDNS *const m, AuthHash *r, AuthRecord *rr);
 extern AuthGroup *RemoveAuthRecord(mDNS *const m, AuthHash *r, AuthRecord *rr);
-extern mDNSBool mDNS_CheckForCacheRecord(mDNS *const m, DNSQuestion *q, mDNSu16 qtype);
 
 // For now this AutoTunnel stuff is specific to Mac OS X.
 // In the future, if there's demand, we may see if we can abstract it out cleanly into the platform layer
@@ -2950,7 +2946,7 @@ struct CompileTimeAssertionChecks_mDNS
 	char sizecheck_DNSServer           [(sizeof(DNSServer)            <=   320) ? 1 : -1];
 	char sizecheck_NetworkInterfaceInfo[(sizeof(NetworkInterfaceInfo) <=  6850) ? 1 : -1];
 	char sizecheck_ServiceRecordSet    [(sizeof(ServiceRecordSet)     <=  5500) ? 1 : -1];
-	char sizecheck_DomainAuthInfo      [(sizeof(DomainAuthInfo)       <=  7968) ? 1 : -1];
+	char sizecheck_DomainAuthInfo      [(sizeof(DomainAuthInfo)       <=  7808) ? 1 : -1];
 	char sizecheck_ServiceInfoQuery    [(sizeof(ServiceInfoQuery)     <=  3200) ? 1 : -1];
 #if APPLE_OSX_mDNSResponder
 	char sizecheck_ClientTunnel        [(sizeof(ClientTunnel)         <=  1148) ? 1 : -1];

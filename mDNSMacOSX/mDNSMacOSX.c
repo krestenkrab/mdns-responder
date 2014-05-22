@@ -204,8 +204,6 @@ static mDNSu8 SPMetricTotalPower    = 99;
 mDNSexport domainname ActiveDirectoryPrimaryDomain;
 mDNSexport int        ActiveDirectoryPrimaryDomainLabelCount;
 mDNSexport mDNSAddr   ActiveDirectoryPrimaryDomainServer;
-
-static mDNSBool AWACSDConnected = mDNSfalse;
 #endif // APPLE_OSX_mDNSResponder
 
 // Used by AutoTunnel
@@ -3172,7 +3170,7 @@ mDNSlocal mStatus UpdateRRStatus(const mDNS *const m, char *buffer, int bufsz, c
 			for (ptr = m->AuthInfoList; ptr; ptr = ptr->next)
 				if (SameDomainName(&ptr->domain, n))
 					{
-					if (ptr == info && (r->updateError == mStatus_BadSig || r->updateError == mStatus_BadKey))
+					if (ptr == info && r->updateError == mStatus_BadSig)
 						{
 						mDNS_snprintf(buffer, bufsz, "Resource record update failed for %##s", r->resrec.name);
 						return r->updateError;
@@ -3701,41 +3699,6 @@ mDNSlocal void DeregisterAutoTunnelDevInfoRecord(mDNS *m, DomainAuthInfo *info)
 	}
 #endif
 
-// pre-declaration
-mDNSlocal void AutoTunnelRecordCallback(mDNS *const m, AuthRecord *const rr, mStatus result);
-
-// Notify remote peers to connect to the relay servers for potential outbound connections from this host.
-// Caller should hold the lock. We don't call mDNS_Register (which acquires the lock) in this function because
-// sometimes the caller may already be holding the lock e.g., SetupLocalAutoTunnelInterface_internal and sometimes
-// not e.g., AutoTunnelHostNameChanged
-mDNSlocal void RegisterAutoTunnel6MetaRecord(mDNS *m, DomainAuthInfo *info)
-	{
-	mStatus err;
-
-	if (!m->mDNS_busy) LogMsg("RegisterAutoTunnel6MetaRecord: ERROR!! Lock not held");
-	
-	if (!AWACSDConnected)
-		{
-		LogInfo("RegisterAutoTunnel6MetaRecord no need to register");
-		return;
-		}
-
-	if (info->AutoTunnel6MetaRecord.resrec.RecordType == kDNSRecordTypeUnregistered)
-		{
-		mDNS_SetupResourceRecord(&info->AutoTunnel6MetaRecord, mDNSNULL, mDNSInterface_Any, kDNSType_PTR, kStandardTTL, kDNSRecordTypeUnregistered, AuthRecordAny, AutoTunnelRecordCallback, info);
-		AssignDomainName (&info->AutoTunnel6MetaRecord.namestorage, (const domainname*) "\x0C" "_autotunnel6");
-		AppendDomainName (&info->AutoTunnel6MetaRecord.namestorage, &info->domain);
-
-		info->AutoTunnel6MetaRecord.resrec.rdata->u.name.c[0] = 0;
-		AppendDomainLabel(&info->AutoTunnel6MetaRecord.resrec.rdata->u.name, &m->hostlabel);
-		AppendDomainName (&info->AutoTunnel6MetaRecord.resrec.rdata->u.name, &info->domain);
-		info->AutoTunnel6MetaRecord.resrec.RecordType = kDNSRecordTypeShared;
-
-		err = mDNS_Register_internal(m, &info->AutoTunnel6MetaRecord);
-		if (err) LogMsg("RegisterAutoTunnel6MetaRecord error %d registering %##s", err, info->AutoTunnel6MetaRecord.namestorage.c);
-		else LogInfo("RegisterAutoTunnel6MetaRecord registering %##s %##s", info->AutoTunnel6MetaRecord.namestorage.c, info->AutoTunnel6MetaRecord.resrec.rdata->u.name.c);
-		}
-	}
 
 // Caller should hold the lock. We don't call mDNS_Register (which acquires the lock) in this function because
 // sometimes the caller may already be holding the lock e.g., SetupLocalAutoTunnelInterface_internal and sometimes
@@ -3823,24 +3786,6 @@ mDNSlocal void RegisterAutoTunnel6Record(mDNS *m, DomainAuthInfo *info)
 	UpdateAutoTunnelDomainStatus(m, info);
 	}
 
-mDNSlocal void DeregisterAutoTunnel6MetaRecord(mDNS *m, DomainAuthInfo *info)
-	{
-	LogInfo("DeregisterAutoTunnel6MetaRecord %##s", info->domain.c);
-
-	if (info->AutoTunnel6MetaRecord.resrec.RecordType > kDNSRecordTypeDeregistering)
-		{
-		mStatus err = mDNS_Deregister(m, &info->AutoTunnel6MetaRecord);
-		if (err)
-			{
-			info->AutoTunnel6MetaRecord.resrec.RecordType = kDNSRecordTypeUnregistered;
-			info->AutoTunnel6MetaRecord.resrec.rdata->u.name.c[0] = 0;
-			LogMsg("DeregisterAutoTunnel6MetaRecord error %d deregistering %##s", err, info->AutoTunnel6MetaRecord.namestorage.c);
-			}
-		else LogInfo("DeregisterAutoTunnel6MetaRecord: Deregistered record");
-		}
-	else LogInfo("DeregisterAutoTunnel6MetaRecord: Not deregistering record state:%d", info->AutoTunnel6MetaRecord.resrec.RecordType);
-	}
-
 mDNSlocal void DeregisterAutoTunnel6Record(mDNS *m, DomainAuthInfo *info)
 	{
 	LogInfo("DeregisterAutoTunnel6Record %##s", info->domain.c);
@@ -3901,12 +3846,6 @@ mDNSlocal void AutoTunnelRecordCallback(mDNS *const m, AuthRecord *const rr, mSt
 			info->AutoTunnel6Record.resrec.rdata->u.ipv6 = zerov6Addr;
 			RegisterAutoTunnel6Record(m,info);
 			}
-		else if (rr == &info->AutoTunnel6MetaRecord)
-			{
-			LogInfo("AutoTunnelRecordCallback: Calling RegisterAutoTunnel6MetaRecord");
-			info->AutoTunnel6MetaRecord.resrec.rdata->u.name.c[0] = 0;
-			RegisterAutoTunnel6MetaRecord(m,info);
-			}
 		}
 	}
 
@@ -3919,7 +3858,6 @@ mDNSlocal void AutoTunnelDeleteAuthInfoState(mDNS *m, DomainAuthInfo *info)
 	DeregisterAutoTunnelDevInfoRecord(m, info);
 	DeregisterAutoTunnelServiceRecords(m, info);
 	DeregisterAutoTunnel6Record(m, info);
-	DeregisterAutoTunnel6MetaRecord(m, info);
 	UpdateAnonymousRacoonConfig(m);		// Determine whether we need racoon to accept incoming connections
 	UpdateAutoTunnelDomainStatus(m, info);
 	}
@@ -3962,13 +3900,11 @@ mDNSlocal void AutoTunnelHostNameChanged(mDNS *m, DomainAuthInfo *info)
 #endif
 	DeregisterAutoTunnelServiceRecords(m, info);
 	DeregisterAutoTunnel6Record(m, info);
-	DeregisterAutoTunnel6MetaRecord(m, info);
 	RegisterAutoTunnelServiceRecords(m, info);
 
 	mDNS_Lock(m);
 	RegisterAutoTunnelDevInfoRecord(m, info);
 	RegisterAutoTunnel6Record(m, info);
-	RegisterAutoTunnel6MetaRecord(m, info);
 	m->NextSRVUpdate = NonZeroTime(m->timenow);
 	mDNS_Unlock(m);
 	}
@@ -4487,6 +4423,13 @@ mDNSlocal mStatus UpdateInterfaceList(mDNS *const m, mDNSs32 utc)
 	int InfoSocket              = socket(AF_INET6, SOCK_DGRAM, 0);
 	if (InfoSocket < 3 && errno != EAFNOSUPPORT) LogMsg("UpdateInterfaceList: InfoSocket error %d errno %d (%s)", InfoSocket, errno, strerror(errno));
 #endif
+
+	// During wakeup, we may get a network change notification e.g., new addresses, before we get
+	// a wake notification. This means that we have not set AnnounceOwner. Registering interfaces with
+	// core would cause us to probe again which will conflict with the sleep proxy server, if we had
+	// registered with it when going to sleep. Hence, need to delay until we get the wake notification
+
+	if (m->SleepState == SleepState_Sleeping) ifa = NULL;
 
 	while (ifa)
 		{
@@ -5653,6 +5596,7 @@ mDNSlocal void UpdateBTMMRelayConnection(mDNS *const m)
 	{
 	DomainAuthInfo *BTMMDomain = mDNSNULL;
 	DomainAuthInfo *FoundInList;
+	static mDNSBool AWACSDConnected = mDNSfalse;
 	char AllUsers[1024];	// maximum size of mach message
 	char AllPass[1024];  	// maximum size of mach message
 	char username[MAX_DOMAIN_LABEL + 1];
@@ -5691,14 +5635,6 @@ mDNSlocal void UpdateBTMMRelayConnection(mDNS *const m)
 		LogInfo("UpdateBTMMRelayConnection: AWS_Connect for user %s", AllUsers);
 		AWACS_Connect(AllUsers, AllPass, "hello.connectivity.me.com");
 		AWACSDConnected = mDNStrue;
-		
-		// We have to do this after AWACSDConnected is true
-		for (FoundInList = m->AuthInfoList; FoundInList; FoundInList = FoundInList->next)
-			if (!FoundInList->deltime && FoundInList->AutoTunnel && IsBTMMDomain(&FoundInList->domain))
-				{
-				LogInfo("UpdateBTMMRelayConnection RegisterAutoTunnel6MetaRecord: %##s", FoundInList->domain.c);
-				RegisterAutoTunnel6MetaRecord(m, FoundInList);
-				}
 		}
 	else
 		{
@@ -6537,7 +6473,7 @@ mDNSexport mDNSBool RecordReadyForSleep(mDNS *const m, AuthRecord *rr)
 	{
 	if (!AuthRecord_uDNS(rr)) return mDNStrue;
 
-	if ((rr->resrec.rrtype == kDNSType_AAAA) && SameDomainLabel(rr->namestorage.c, (const mDNSu8 *)"\x0c_autotunnel6"))
+	if (SameDomainLabel(rr->namestorage.c, (const mDNSu8 *)"\x0c_autotunnel6"))
 		{
 		LogInfo("RecordReadyForSleep: %s not ready for sleep", ARDisplayString(m, rr));
 		return mDNSfalse;
@@ -6697,9 +6633,7 @@ mDNSlocal void AddAutoTunnel6Record(mDNS *const m, char *ifname, CFDictionaryRef
 		// this case as though the dictionary does not have the value
 		RemoveAutoTunnel6Record(m);
 		// If awacsd crashes or exits for some reason, restart the relay connection
-		mDNS_Lock(m);
 		UpdateBTMMRelayConnection(m);
-		mDNS_Unlock(m);
 		return;
 		}
 	
@@ -6763,9 +6697,7 @@ mDNSlocal void ParseBackToMyMac(mDNS *const m, CFDictionaryRef connd)
 		RemoveAutoTunnel6Record(m);
 		m->AutoTunnelRelayAddrOut = zerov6Addr;
 		// We don't have a utun interface, start the relay connection if possible
-		mDNS_Lock(m);
 		UpdateBTMMRelayConnection(m);
-		mDNS_Unlock(m);
 		}
 	else
 		{
@@ -7684,8 +7616,6 @@ mDNSlocal void SnowLeopardPowerChanged(void *refcon, IOPMConnection connection, 
 // "hash" function to solve this, the others are hard to solve. Hence, we share the hash (AuthHash) implementation
 // of the core layer which does all of the above very efficiently
 
-#define ETCHOSTS_BUFSIZE	1024	// Buffer size to parse a single line in /etc/hosts
-
 mDNSexport void FreeEtcHosts(mDNS *const m, AuthRecord *const rr, mStatus result)
     {
     (void)m;  // unused
@@ -7827,8 +7757,6 @@ mDNSlocal int EtcHostsParseOneName(int start, int length, char *buffer, char **n
 	*name = NULL;
 	for (i = start; i < length; i++)
 		{
-		if (buffer[i] == '#')
-			return -1;
 		if (buffer[i] != ' ' && buffer[i] != ',' && buffer[i] != '\t')
 			{
 			*name = &buffer[i];
@@ -8007,55 +7935,58 @@ mDNSlocal void mDNSMacOSXParseEtcHostsLine(mDNS *const m, char *buffer, ssize_t 
 
 mDNSlocal void mDNSMacOSXParseEtcHosts(mDNS *const m, int fd, AuthHash *auth)
 	{
-	mDNSBool good;
-	char	buf[ETCHOSTS_BUFSIZE];
-	int len;
-	FILE *fp;
-
 	if (fd == -1) { LogInfo("mDNSMacOSXParseEtcHosts: fd is -1"); return; }
+	
+	LogInfo("mDNSMacOSXParseEtcHosts: Parsing etc hosts");
 
-	fp = fopen("/etc/hosts", "r");
-	if (!fp) { LogInfo("mDNSMacOSXParseEtcHosts: fp is NULL"); return; }
-
-	while (1)
+	// Read through the file
+	char	readBuf[1024]; // support a maximum line of 1024 bytes including newline
+	off_t	offset = 0;
+	int	comment = 0;
+	ssize_t	i = 0;
+	ssize_t	length;
+	ssize_t	linestart;
+	while ((length = pread(fd, &readBuf[i], sizeof(readBuf) - i, offset) + i) >= i)
 		{
-		good = (fgets(buf, ETCHOSTS_BUFSIZE, fp) != NULL);
-		if (!good) break;
-
-		// skip comment and empty lines
-		if (buf[0] == '#' || buf[0] == '\r' || buf[0] == '\n')
-			continue;
-
-		len = strlen(buf);
-		if (!len) break;	// sanity check
-		//Check for end of line code(mostly only \n but pre-OS X Macs could have only \r)  
-		if (buf[len - 1] == '\r' || buf[len - 1] == '\n')
+		if (length == i)
 			{
-			buf[len - 1] = '\0';
-			len = len - 1;
+			// end of file
+			if (length != 0) mDNSMacOSXParseEtcHostsLine(m, readBuf, length, auth);
+			break;
 			}
-		// fgets always null terminates and hence even if we have no
-                // newline at the end, it is null terminated. The callee                                                                                                          
-                // (mDNSMacOSXParseEtcHostsLine) expects the length to be such that
-                // buf[length] is zero and hence we decrement len to reflect that.
-		if (len)
+		
+		// increment our offset by the number of bytes we read
+		offset += length - i;
+		
+		// loop through the buffer looking for end of lines
+		for (linestart = 0; i < length; i++)
 			{
-			//Additional check when end of line code is 2 chars ie\r\n(DOS, other old OSes)
-			//here we need to check for just \r but taking extra caution.
-			if (buf[len - 1] == '\r' || buf[len - 1] == '\n')
+			if (readBuf[i] == '#' || readBuf[i] == '\r' || readBuf[i] == '\n')
 				{
-				buf[len - 1] = '\0';
-				len = len - 1;
+				int parseline = i - linestart > 0 && comment == 0;
+				comment = readBuf[i] == '#';
+				if (parseline)
+					{
+					readBuf[i] = 0;
+					mDNSMacOSXParseEtcHostsLine(m, &readBuf[linestart], i - linestart, auth);
+					}
+				linestart = i + 1;
 				}
 			}
-		if (!len) //Sanity Check: len should never be zero
+		
+		// prepare to read the next chunk of the file
+		if (linestart == 0)
 			{
-			LogMsg("mDNSMacOSXParseEtcHosts: Length is zero!");
-			continue;
+			// single line was larger than our buffer, we're going to ignore it
+			comment = 1; // treat remainder of line as comment
+			i = 0;
 			}
-		mDNSMacOSXParseEtcHostsLine(m, buf, len, auth);
+		else
+			{
+			i = length - linestart;
+			if (i) memmove(readBuf, &readBuf[linestart], i);
+			}
 		}
-	fclose(fp);
 	}
 
 mDNSlocal void mDNSMacOSXUpdateEtcHosts(mDNS *const m);
